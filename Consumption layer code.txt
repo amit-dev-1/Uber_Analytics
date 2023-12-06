@@ -1,0 +1,289 @@
+
+--creation of consumption layer
+
+create or replace schema my_uber_project.consumption_layer ;
+use schema my_uber_project.consumption_layer ;
+
+--**************************************************************
+--datetime dimension table creation and insertion of values.
+
+create or replace table datetime_dim(
+datetime_id number autoincrement start 1 increment 1,
+tpep_pickup_datetime timestamp_ntz,
+pick_hour number,
+pick_day number,
+pick_month number,
+pick_year number,
+pick_weekday number,
+tpep_dropoff_datetime timestamp_ntz,
+drop_hour  number,
+drop_day  number,
+drop_month  number,
+drop_year  number,
+drop_weekday  number
+) ;
+
+
+select * from datetime_dim ;
+
+
+insert into datetime_dim(
+tpep_pickup_datetime ,
+pick_hour,
+pick_day,
+pick_month,
+pick_year,
+pick_weekday,
+tpep_dropoff_datetime,
+drop_hour,
+drop_day,
+drop_month,
+drop_year,
+drop_weekday
+)
+select 
+to_timestamp_ntz(tpep_pickup_datetime,'yyyy-mm-dd hh24:mi:ss'),
+date_part(hour,to_timestamp_ntz(tpep_pickup_datetime,'yyyy-mm-dd hh24:mi:ss')),
+date_part(day,to_timestamp_ntz(tpep_pickup_datetime,'yyyy-mm-dd hh24:mi:ss')),
+date_part(month,to_timestamp_ntz(tpep_pickup_datetime,'yyyy-mm-dd hh24:mi:ss')),
+date_part(year,to_timestamp_ntz(tpep_pickup_datetime,'yyyy-mm-dd hh24:mi:ss')),
+date_part(dayofweek,to_timestamp_ntz(tpep_pickup_datetime,'yyyy-mm-dd hh24:mi:ss')),
+to_timestamp_ntz(tpep_dropoff_datetime,'yyyy-mm-dd hh24:mi:ss'),
+date_part(hour,to_timestamp_ntz(tpep_dropoff_datetime,'yyyy-mm-dd hh24:mi:ss')),
+date_part(day,to_timestamp_ntz(tpep_dropoff_datetime,'yyyy-mm-dd hh24:mi:ss')),
+date_part(month,to_timestamp_ntz(tpep_dropoff_datetime,'yyyy-mm-dd hh24:mi:ss')),
+date_part(year,to_timestamp_ntz(tpep_dropoff_datetime,'yyyy-mm-dd hh24:mi:ss')),
+date_part(dayofweek,to_timestamp_ntz(tpep_dropoff_datetime,'yyyy-mm-dd hh24:mi:ss'))
+from my_uber_project.raw_layer.uber_raw_data ;
+
+--***************************************************************************************
+--creation of pickup location dim table 
+
+create or replace table pickup_location_dim(
+pickup_location_id number autoincrement start 1 increment 1,
+pickup_lOCATION GEOGRAPHY
+) ;
+
+INSERT INTO MY_UBER_PROJECT.CONSUMPTION_LAYER.PICKUP_LOCATION_DIM (PICKUP_LOCATION)
+SELECT TO_GEOGRAPHY('POINT(' || PICKUP_LONGITUDE || ' ' || PICKUP_LATITUDE || ')')
+FROM my_uber_project.raw_layer.uber_raw_data;
+
+SELECT * FROM Pickup_location_dim ;
+
+--*****************************************************************************************
+--CREATION OF DROPOFF LOCATION
+create or replace table DROPOFF_location_dim(
+DROPOFF_location_id number autoincrement start 1 increment 1,
+DROPOFF_lOCATION GEOGRAPHY
+) ;
+
+INSERT INTO MY_UBER_PROJECT.CONSUMPTION_LAYER.DROPOFF_LOCATION_DIM (DROPOFF_LOCATION)
+SELECT TO_GEOGRAPHY('POINT(' || DROPOFF_LONGITUDE || ' ' || DROPOFF_LATITUDE || ')')
+FROM my_uber_project.raw_layer.uber_raw_data;
+
+SELECT * FROM DROPOFF_location_dim ;
+
+--*********************************************************************************************
+--CREATION OF THE PASSENGER_COUNT_DIM TABLE
+CREATE OR REPLACE TABLE PASSENGER_COUNT_DIM(
+PASSENGER_COUNT_ID NUMBER AUTOINCREMENT START 1 INCREMENT 1,
+PASSENGER_COUNT NUMBER
+) ;
+
+INSERT INTO PASSENGER_COUNT_DIM(
+PASSENGER_COUNT
+)
+SELECT 
+PASSENGER_COUNT::NUMBER
+FROM 
+my_uber_project.raw_layer.uber_raw_data;
+
+SELECT * FROM PASSENGER_COUNT_DIM ;
+
+--********************************************************************************************
+--CREATION OF THE TRIP_DISTANCE_DIM TABLE
+CREATE OR REPLACE TABLE TRIP_DISTANCE_DIM (
+TRIP_DISTANCE_ID NUMBER AUTOINCREMENT,
+TRIP_DISTANCE NUMBER
+) ;
+
+INSERT INTO TRIP_DISTANCE_DIM(
+TRIP_DISTANCE
+)
+SELECT TRIP_DISTANCE::NUMBER
+FROM my_uber_project.raw_layer.uber_raw_data;
+
+SELECT * FROM TRIP_DISTANCE_DIM ;
+
+--*****************************************************************************************
+--CREATION OF THE RATE_CODE_DIM TABLE
+CREATE OR REPLACE TABLE RATE_CODE_DIM (
+RATE_CODE_ID NUMBER AUTOINCREMENT,
+RATECODEID NUMBER,
+RATE_CODE_NAME STRING);
+
+INSERT INTO RATE_CODE_DIM(
+RATECODEID,
+RATE_CODE_NAME
+)
+SELECT
+RATECODEID::NUMBER,
+CASE 
+    WHEN RATECODEID='1' THEN 'STANDARD RATE'
+    WHEN RATECODEID='2' THEN 'JFK'
+    WHEN RATECODEID='3' THEN 'NEWARK'
+    WHEN RATECODEID='4' THEN 'NASSAU OR WESTCHESTER'
+    WHEN RATECODEID='5' THEN 'NEGOTIATED FARE'
+    WHEN RATECODEID='6' THEN 'GROUP RIDE'
+    ELSE 'NA'
+    END AS RATE_CODE_NAME 
+FROM my_uber_project.raw_layer.uber_raw_data;
+
+SELECT * FROM RATE_CODE_DIM ;
+
+--*********************************************************************************
+--CREATION OF THE PAYMENT_TYPE_DIM TABLE
+CREATE OR REPLACE TABLE PAYMENT_TYPE_DIM(
+PAYMENT_TYPE_ID NUMBER AUTOINCREMENT START 1 INCREMENT 1,
+PAYMENT_TYPE NUMBER,
+PAYMENT_TYPE_NAME STRING
+) ;
+
+INSERT INTO PAYMENT_TYPE_DIM(
+PAYMENT_TYPE,
+PAYMENT_TYPE_NAME
+)
+SELECT 
+PAYMENT_TYPE::NUMBER,
+CASE
+    WHEN PAYMENT_TYPE='1' THEN 'CREDIT CARD'
+    WHEN PAYMENT_TYPE='2' THEN 'CASH'
+    WHEN PAYMENT_TYPE='3' THEN 'NO CHARGE'
+    WHEN PAYMENT_TYPE='4' THEN 'DISPUTE'
+    WHEN PAYMENT_TYPE='5' THEN 'UNKNOWN'
+    WHEN PAYMENT_TYPE='6' THEN 'VOIDED TRIP'
+    ELSE 'NA'
+    END AS PAYMENT_TYPE_NAME 
+FROM my_uber_project.raw_layer.uber_raw_data;
+
+SELECT * FROM PAYMENT_TYPE_DIM ;
+
+--**************************************************************************************
+--CREATION OF THE FACT TABLE 
+CREATE OR REPLACE TABLE FACT_TABLE(
+TRIP_ID NUMBER,
+VENDORID NUMBER,
+DATETIME_ID NUMBER,
+PASSENGER_COUNT_ID NUMBER,
+TRIP_DISTANCE_ID NUMBER,
+RATE_CODE_ID NUMBER,
+STORE_AND_FWD_FLAG STRING,
+PICKUP_LOCATION_ID NUMBER,
+DROPOFF_LOCATION_ID NUMBER,
+PAYMENT_TYPE_ID NUMBER,
+FARE_AMOUNT NUMBER,
+EXTRA NUMBER,
+MTA_TAX NUMBER,
+TIP_AMOUNT NUMBER,
+TOLLS_AMOUNT NUMBER,
+IMPROVEMENT_SURCHARGE NUMBER,
+TOTAL_AMOUNT NUMBER
+);
+
+INSERT INTO FACT_TABLE(
+TRIP_ID,
+VENDORID ,
+DATETIME_ID ,
+PASSENGER_COUNT_ID ,
+TRIP_DISTANCE_ID ,
+RATE_CODE_ID ,
+STORE_AND_FWD_FLAG ,
+PICKUP_LOCATION_ID ,
+DROPOFF_LOCATION_ID ,
+PAYMENT_TYPE_ID ,
+FARE_AMOUNT ,
+EXTRA ,
+MTA_TAX ,
+TIP_AMOUNT ,
+TOLLS_AMOUNT ,
+IMPROVEMENT_SURCHARGE ,
+TOTAL_AMOUNT 
+)
+SELECT 
+RW.TRIP_ID::NUMBER,
+RW.VENDORID::NUMBER,
+DD.DATETIME_ID,
+PCD.PASSENGER_COUNT_ID,
+TD.TRIP_DISTANCE_ID,
+RD.RATE_CODE_ID,
+RW.STORE_AND_FWD_FLAG,
+PD.PICKUP_LOCATION_ID,
+DRD.DROPOFF_LOCATION_ID,
+PMD.PAYMENT_TYPE_ID,
+RW.FARE_AMOUNT::NUMBER,
+RW.EXTRA::NUMBER ,
+RW.MTA_TAX::NUMBER ,
+RW.TIP_AMOUNT::NUMBER ,
+RW.TOLLS_AMOUNT::NUMBER ,
+RW.IMPROVEMENT_SURCHARGE::NUMBER ,
+RW.TOTAL_AMOUNT::NUMBER 
+FROM my_uber_project.raw_layer.uber_raw_data RW
+JOIN DATETIME_DIM DD ON RW.trip_id=dd.datetime_id
+JOIN PASSENGER_COUNT_DIM PCD ON RW.TRIP_ID=PCD.PASSENGER_COUNT_ID
+JOIN TRIP_DISTANCE_DIM TD ON TD.TRIP_DISTANCE_ID=RW.TRIP_ID
+JOIN RATE_CODE_DIM RD ON RD.RATE_CODE_ID=RW.TRIP_ID
+JOIN PAYMENT_TYPE_DIM PMD ON PMD.PAYMENT_TYPE_ID=RW.TRIP_ID
+JOIN DROPOFF_LOCATION_DIM DRD ON DRD.DROPOFF_LOCATION_ID=RW.TRIP_ID
+JOIN PICKUP_LOCATION_DIM PD ON PD.PICKUP_LOCATION_ID=RW.TRIP_ID ;
+
+SELECT * FROM FACT_TABLE ;
+
+--************************************************************************************************
+
+-- USING SOME ANLYTICS QUERY ON FACT AND DIMENSION TABLE 
+
+SELECT VENDORID,AVG(FARE_AMOUNT) FROM FACT_TABLE GROUP BY VENDORID;
+
+SELECT PAYMENT_TYPE_NAME,AVG(TIP_AMOUNT) AS AVG_TIP FROM MY_UBER_PROJECT.CONSUMPTION_LAYER.FACT_TABLE F
+JOIN PAYMENT_TYPE_DIM P ON F.TRIP_ID=P.PAYMENT_TYPE_ID GROUP BY PAYMENT_TYPE_NAME ;
+
+--FIND TOP 10 PICKUP LOCATION BASED ON THE NUMBER OF TRIPS.
+
+SELECT F.VENDORID,P.PICKUP_LOCATION,COUNT(*) FROM FACT_TABLE F JOIN
+PICKUP_LOCATION_DIM P ON P.PICKUP_LOCATION_ID=F.TRIP_ID GROUP BY P.PICKUP_LOCATION ;
+
+-- Creaton of Analytics table to visualise the data in Power Bi.
+
+CREATE OR REPLACE TABLE my_uber_project.consumption_layer.tbl_analytics AS (
+SELECT 
+f.trip_id,
+f.VendorID,
+d.tpep_pickup_datetime,
+d.tpep_dropoff_datetime,
+p.passenger_count,
+t.trip_distance,
+r.rate_code_name,
+pick.pickup_location,
+drp.dropoff_location,
+pay.payment_type_name,
+f.fare_amount,
+f.extra,
+f.mta_tax,
+f.tip_amount,
+f.tolls_amount,
+f.improvement_surcharge,
+f.total_amount
+FROM 
+
+fact_table f
+JOIN datetime_dim d  ON f.trip_id=d.datetime_id
+JOIN passenger_count_dim p  ON p.passenger_count_id=f.trip_id
+JOIN trip_distance_dim t  ON t.trip_distance_id=f.trip_id  
+JOIN rate_code_dim r ON r.rate_code_id=f.trip_id
+JOIN pickup_location_dim pick ON pick.pickup_location_id=f.trip_id
+JOIN dropoff_location_dim drp ON drp.dropoff_location_id=f.trip_id
+JOIN payment_type_dim pay ON pay.payment_type_id=f.trip_id)
+;
+
+select * from tbl_analytics ;
+

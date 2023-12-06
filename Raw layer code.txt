@@ -1,0 +1,60 @@
+--creation of database and schema
+
+create database my_uber_project ;
+create schema raw_layer ;
+
+--creation of stage and file format
+
+create or replace stage raw_layer.uber_load_stg ;
+
+create or replace file format uber_file_fmt
+type='csv'
+skip_header=1
+field_delimiter=','
+field_optionally_enclosed_by='"' ;
+
+--creation of Raw table 
+
+create or replace table my_uber_project.raw_layer.Uber_raw_data(
+VendorID String,
+tpep_pickup_datetime String,
+tpep_dropoff_datetime String,
+passenger_count String,
+trip_distance String,
+pickup_longitude String,
+pickup_latitude String,
+RatecodeID String,
+store_and_fwd_flag String,
+dropoff_longitude String,
+dropoff_latitude String,
+payment_type String,
+fare_amount String,
+extra String,
+mta_tax String,
+tip_amount String,
+tolls_amount String,
+improvement_surcharge String,
+total_amount String
+) ;
+
+--Lodaing of data into the internal stage and them copy these data from internal stage to Raw table is done from Snowsql using CMD prompt.
+
+--To verify data is in table or not.
+
+select * from my_uber_project.raw_layer.uber_raw_data ;
+
+-- First, creation of trip_id column and adding numeric seq value to join this column with the dim table 
+
+CREATE or replace SEQUENCE trip_id_seq START 1 INCREMENT 1;
+
+update UBER_RAW_DATA
+set TRIP_ID = trip_id_seq.nextval ;
+
+
+
+
+
+
+
+
+
